@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
       print(" Image: ${originalImage.width}x${originalImage.height}");
       
       // 2. Redimensionner (vérifie la taille de ton modèle)
-      int inputSize = 128; // Si ton modèle utilise 224, mets 224
+      int inputSize = 224; // Si ton modèle utilise 224, mets 224
       img.Image resized = img.copyResize(originalImage, width: inputSize, height: inputSize);
       
       // 3. Créer le tensor d'entrée
