@@ -1,24 +1,3 @@
-<<<<<<< HEAD
-name: plante_app 
-description: Application reconnaissance de plantes 
-version: 1.0.0+1 
- 
-environment: 
-    sdk: ">=3.0.0 <4.0.0" 
- 
-dependencies: 
-  flutter: 
-    sdk: flutter 
-  image_picker: 0.8.7 
-  tflite_flutter: 0.10.4 
-  image: 4.1.3 
- 
-flutter: 
-  uses-material-design: true 
-  assets: 
-    - assets/model.tflite 
-    - assets/labels.txt 
-=======
 name: plante_app
 description: Application reconnaissance plantes
 version: 1.0.0+1
@@ -38,4 +17,3 @@ flutter:
   assets:
     - assets/model.tflite
     - assets/labels.txt
->>>>>>> 2489d5aab99c2034dbc23de3c807c67f3c086f80
