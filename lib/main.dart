@@ -40,15 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadModel() async {
     try {
-      // Charger le modèle
       _interpreter = await Interpreter.fromAsset('assets/model.tflite');
-      
-      // Charger les labels
       String labelData = await rootBundle.loadString('assets/labels.txt');
       _labels = labelData.split('\n').where((l) => l.isNotEmpty).toList();
-      
       print(" Modèle chargé: ${_labels.length} classes");
-      print(" Labels: $_labels");
     } catch (e) {
       print(" Erreur: $e");
       setState(() => _result = "Erreur chargement modèle");
@@ -58,17 +53,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
-    
     if (picked == null) return;
-    
+
     setState(() {
       _image = File(picked.path);
       _isLoading = true;
       _result = "Analyse en cours...";
     });
-    
+
     await _classifyImage(File(picked.path));
-    
     setState(() => _isLoading = false);
   }
 
@@ -77,49 +70,39 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _result = "Modèle non chargé");
       return;
     }
-    
+
     try {
       // 1. Lire l'image
       final bytes = await imageFile.readAsBytes();
       img.Image? originalImage = img.decodeImage(bytes);
-      
       if (originalImage == null) {
         setState(() => _result = "Erreur lecture image");
         return;
       }
-      
-      print(" Image: ${originalImage.width}x${originalImage.height}");
-      
-      // 2. Redimensionner (vérifie la taille de ton modèle)
-      int inputSize = 224; // Si ton modèle utilise 224, mets 224
+
+      // 2. Redimensionner à 128x128 (vérifie la taille de ton modèle)
+      int inputSize = 224;
       img.Image resized = img.copyResize(originalImage, width: inputSize, height: inputSize);
-      
+
       // 3. Créer le tensor d'entrée
       var input = List.filled(1 * inputSize * inputSize * 3, 0.0)
           .reshape([1, inputSize, inputSize, 3]);
-      
-      // 4. Remplir avec les pixels (NORMALISATION ENTRE 0 ET 1)
+
+      // 4. Remplir avec les pixels (normalisation entre 0 et 1)
       for (int y = 0; y < inputSize; y++) {
         for (int x = 0; x < inputSize; x++) {
           int pixel = resized.getPixel(x, y);
-          input[0][y][x][0] = img.getRed(pixel) / 255.0;   // R
-          input[0][y][x][1] = img.getGreen(pixel) / 255.0; // G
-          input[0][y][x][2] = img.getBlue(pixel) / 255.0;  // B
+          input[0][y][x][0] = img.getRed(pixel) / 255.0;
+          input[0][y][x][1] = img.getGreen(pixel) / 255.0;
+          input[0][y][x][2] = img.getBlue(pixel) / 255.0;
         }
       }
-      
+
       // 5. Exécuter le modèle
       var output = List.filled(1 * _labels.length, 0.0).reshape([1, _labels.length]);
       _interpreter!.run(input, output);
-      
-      // 6. Afficher toutes les probabilités (debug)
-      print(" Résultats:");
-      for (int i = 0; i < _labels.length; i++) {
-        double proba = output[0][i] * 100;
-        print("   ${_labels[i]}: ${proba.toStringAsFixed(1)}%");
-      }
-      
-      // 7. Trouver la meilleure prédiction
+
+      // 6. Trouver la meilleure prédiction
       int bestIndex = 0;
       double bestValue = output[0][0];
       for (int i = 1; i < _labels.length; i++) {
@@ -128,14 +111,12 @@ class _HomeScreenState extends State<HomeScreen> {
           bestIndex = i;
         }
       }
-      
-      // 8. Afficher le résultat
+
+      // 7. Afficher le résultat
       setState(() {
         _result = "${_labels[bestIndex]} (${(bestValue * 100).toStringAsFixed(1)}%)";
       });
-      
-      print(" Résultat: ${_labels[bestIndex]}");
-      
+
     } catch (e) {
       print(" Erreur: $e");
       setState(() => _result = "Erreur: $e");
@@ -153,7 +134,6 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Image
             Expanded(
               flex: 2,
               child: Container(
@@ -179,7 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 20),
-            // Résultat
             Container(
               width: double.infinity,
               padding: EdgeInsets.all(20),
@@ -197,7 +176,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
             SizedBox(height: 20),
-            // Bouton
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -207,7 +185,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: Text("Choisir une image"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
-                  textStyle: TextStyle(fontSize: 16),
                 ),
               ),
             ),
