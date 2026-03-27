@@ -47,10 +47,10 @@ class _HomeScreenState extends State<HomeScreen> {
       String labelData = await rootBundle.loadString('assets/labels.txt');
       _labels = labelData.split('\n').where((l) => l.isNotEmpty).toList();
       
-      print("✅ Modèle chargé: ${_labels.length} classes");
-      print("📋 Labels: $_labels");
+      print(" Modèle chargé: ${_labels.length} classes");
+      print(" Labels: $_labels");
     } catch (e) {
-      print("❌ Erreur: $e");
+      print(" Erreur: $e");
       setState(() => _result = "Erreur chargement modèle");
     }
   }
@@ -88,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
       
-      print("📸 Image: ${originalImage.width}x${originalImage.height}");
+      print(" Image: ${originalImage.width}x${originalImage.height}");
       
       // 2. Redimensionner (vérifie la taille de ton modèle)
       int inputSize = 128; // Si ton modèle utilise 224, mets 224
@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _interpreter!.run(input, output);
       
       // 6. Afficher toutes les probabilités (debug)
-      print("📊 Résultats:");
+      print(" Résultats:");
       for (int i = 0; i < _labels.length; i++) {
         double proba = output[0][i] * 100;
         print("   ${_labels[i]}: ${proba.toStringAsFixed(1)}%");
@@ -134,10 +134,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _result = "${_labels[bestIndex]} (${(bestValue * 100).toStringAsFixed(1)}%)";
       });
       
-      print("✅ Résultat: ${_labels[bestIndex]}");
+      print(" Résultat: ${_labels[bestIndex]}");
       
     } catch (e) {
-      print("❌ Erreur: $e");
+      print(" Erreur: $e");
       setState(() => _result = "Erreur: $e");
     }
   }
