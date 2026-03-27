@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 
 void main() {
   runApp(MyApp());
@@ -13,69 +14,203 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Reconnaissance Plantes',
-      home: Home(),
+      theme: ThemeData(primarySwatch: Colors.green),
+      home: HomeScreen(),
     );
   }
 }
 
-class Home extends StatefulWidget {
+class HomeScreen extends StatefulWidget {
   @override
-  _HomeState createState() => _HomeState();
+  _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeState extends State<Home> {
-  File? image;
-  String result = "Choisissez une image";
-  Interpreter? interpreter;
-  List<String> labels = [];
+class _HomeScreenState extends State<HomeScreen> {
+  File? _image;
+  String _result = "Choisissez une image";
+  bool _isLoading = false;
+  Interpreter? _interpreter;
+  List<String> _labels = [];
 
   @override
   void initState() {
     super.initState();
-    loadModel();
+    _loadModel();
   }
 
-  loadModel() async {
-    interpreter = await Interpreter.fromAsset('assets/model.tflite');
-    String labelData = await rootBundle.loadString('assets/labels.txt');
-    labels = labelData.split('\n');
-  }
-
-  pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-    setState(() { image = File(picked.path); });
-    classifyImage(File(picked.path));
-  }
-
-  classifyImage(File imageFile) async {
-    var input = List.filled(1 * 128 * 128 * 3, 0.0).reshape([1, 128, 128, 3]);
-    var output = List.filled(1 * 5, 0.0).reshape([1, 5]);
-    interpreter!.run(input, output);
-    int maxIndex = 0;
-    double maxVal = output[0][0];
-    for (int i = 1; i < 5; i++) {
-      if (output[0][i] > maxVal) {
-        maxVal = output[0][i];
-        maxIndex = i;
-      }
+  Future<void> _loadModel() async {
+    try {
+      // Charger le modèle
+      _interpreter = await Interpreter.fromAsset('assets/model.tflite');
+      
+      // Charger les labels
+      String labelData = await rootBundle.loadString('assets/labels.txt');
+      _labels = labelData.split('\n').where((l) => l.isNotEmpty).toList();
+      
+      print("✅ Modèle chargé: ${_labels.length} classes");
+      print("📋 Labels: $_labels");
+    } catch (e) {
+      print("❌ Erreur: $e");
+      setState(() => _result = "Erreur chargement modèle");
     }
-    setState(() { result = labels[maxIndex]; });
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (picked == null) return;
+    
+    setState(() {
+      _image = File(picked.path);
+      _isLoading = true;
+      _result = "Analyse en cours...";
+    });
+    
+    await _classifyImage(File(picked.path));
+    
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _classifyImage(File imageFile) async {
+    if (_interpreter == null) {
+      setState(() => _result = "Modèle non chargé");
+      return;
+    }
+    
+    try {
+      // 1. Lire l'image
+      final bytes = await imageFile.readAsBytes();
+      img.Image? originalImage = img.decodeImage(bytes);
+      
+      if (originalImage == null) {
+        setState(() => _result = "Erreur lecture image");
+        return;
+      }
+      
+      print("📸 Image: ${originalImage.width}x${originalImage.height}");
+      
+      // 2. Redimensionner (vérifie la taille de ton modèle)
+      int inputSize = 128; // Si ton modèle utilise 224, mets 224
+      img.Image resized = img.copyResize(originalImage, width: inputSize, height: inputSize);
+      
+      // 3. Créer le tensor d'entrée
+      var input = List.filled(1 * inputSize * inputSize * 3, 0.0)
+          .reshape([1, inputSize, inputSize, 3]);
+      
+      // 4. Remplir avec les pixels (NORMALISATION ENTRE 0 ET 1)
+      for (int y = 0; y < inputSize; y++) {
+        for (int x = 0; x < inputSize; x++) {
+          int pixel = resized.getPixel(x, y);
+          input[0][y][x][0] = img.getRed(pixel) / 255.0;   // R
+          input[0][y][x][1] = img.getGreen(pixel) / 255.0; // G
+          input[0][y][x][2] = img.getBlue(pixel) / 255.0;  // B
+        }
+      }
+      
+      // 5. Exécuter le modèle
+      var output = List.filled(1 * _labels.length, 0.0).reshape([1, _labels.length]);
+      _interpreter!.run(input, output);
+      
+      // 6. Afficher toutes les probabilités (debug)
+      print("📊 Résultats:");
+      for (int i = 0; i < _labels.length; i++) {
+        double proba = output[0][i] * 100;
+        print("   ${_labels[i]}: ${proba.toStringAsFixed(1)}%");
+      }
+      
+      // 7. Trouver la meilleure prédiction
+      int bestIndex = 0;
+      double bestValue = output[0][0];
+      for (int i = 1; i < _labels.length; i++) {
+        if (output[0][i] > bestValue) {
+          bestValue = output[0][i];
+          bestIndex = i;
+        }
+      }
+      
+      // 8. Afficher le résultat
+      setState(() {
+        _result = "${_labels[bestIndex]} (${(bestValue * 100).toStringAsFixed(1)}%)";
+      });
+      
+      print("✅ Résultat: ${_labels[bestIndex]}");
+      
+    } catch (e) {
+      print("❌ Erreur: $e");
+      setState(() => _result = "Erreur: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Reconnaissance de Plantes")),
-      body: Center(
+      appBar: AppBar(
+        title: Text("Reconnaissance de Plantes"),
+        backgroundColor: Colors.green,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            image == null ? Text("Aucune image") : Image.file(image!, height: 250),
+            // Image
+            Expanded(
+              flex: 2,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _image == null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.image, size: 60, color: Colors.grey),
+                            SizedBox(height: 10),
+                            Text("Aucune image"),
+                          ],
+                        ),
+                      )
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(_image!, fit: BoxFit.cover),
+                      ),
+              ),
+            ),
             SizedBox(height: 20),
-            Text(result, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            // Résultat
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green),
+              ),
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : Text(
+                      _result,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+            ),
             SizedBox(height: 20),
-            ElevatedButton(onPressed: pickImage, child: Text("Choisir une image")),
+            // Bouton
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton.icon(
+                onPressed: _isLoading ? null : _pickImage,
+                icon: Icon(Icons.photo_library),
+                label: Text("Choisir une image"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  textStyle: TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
           ],
         ),
       ),
